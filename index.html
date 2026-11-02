@@ -1,392 +1,660 @@
+```html
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Atine — Informe de Ubicación GPS</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <!-- FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <style>
-        #map { height: 350px; width: 100%; border-radius: 0.75rem; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #map {
+            z-index: 10;
+        }
+        /* Pulse Animation for Map Marker Signal */
+        .pulse-ring {
+            border: 3px solid #3b82f6;
+            border-radius: 50%;
+            height: 30px;
+            width: 30px;
+            position: absolute;
+            left: -5px;
+            top: -5px;
+            animation: pulsate 1.8s ease-out infinite;
+            opacity: 0;
+        }
+        @keyframes pulsate {
+            0% { transform: scale(0.1, 0.1); opacity: 0.0; }
+            50% { opacity: 1.0; }
+            100% { transform: scale(1.6, 1.6); opacity: 0.0; }
+        }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between">
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-full flex flex-col transition-colors duration-200">
 
-    <!-- Header -->
-    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-xs">
-        <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-            <div class="flex items-center space-x-2">
-                <div class="bg-amber-600 text-white p-2 rounded-lg shadow-xs">
-                    <i class="fa-solid fa-crosshairs text-lg"></i>
+    <!-- Header Navigation -->
+    <header class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-brand-500 text-white p-2 rounded-xl shadow-md shadow-brand-500/20">
+                    <i class="fa-solid fa-location-crosshairs text-xl"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold tracking-tight text-slate-900 flex items-center">
-                        Atine 
-                        <span class="text-xs font-medium bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full ml-2">GPS</span>
-                    </h1>
-                    <p class="text-xs text-slate-500">Informe de posición y entorno geográfico</p>
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-bold text-xl leading-tight tracking-tight text-slate-900 dark:text-white">Atine</h1>
+                        <span class="text-[10px] uppercase font-bold tracking-wider bg-brand-100 dark:bg-brand-900/50 text-brand-700 dark:text-brand-300 px-2 py-0.5 rounded-full border border-brand-200 dark:border-brand-800">GPS</span>
+                    </div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Informe Geográfico de Precisión</p>
                 </div>
             </div>
-            <button onclick="getLocation()" id="btn-refresh" class="bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-xs transition-colors flex items-center space-x-2 cursor-pointer">
-                <i class="fa-solid fa-location-crosshairs"></i>
-                <span>Atinar de nuevo</span>
+            
+            <button id="themeToggleBtn" class="p-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Cambiar Tema">
+                <i class="fa-solid fa-moon dark:hidden text-lg"></i>
+                <i class="fa-solid fa-sun hidden dark:block text-lg text-amber-400"></i>
             </button>
         </div>
     </header>
 
-    <!-- Main Container -->
-    <main class="max-w-4xl mx-auto px-4 py-6 w-full space-y-6">
+    <!-- Main Content Area -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-6">
 
-        <!-- Quick Status Card (Pantalla Principal) -->
-        <section class="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
-            <div class="flex items-center justify-between mb-3">
-                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Estado de Ubicación Actual</h2>
-                <span id="badge-source" class="text-xs px-2.5 py-1 rounded-full font-medium bg-slate-100 text-slate-600">
-                    <i class="fa-solid fa-spinner fa-spin mr-1"></i> Detectando...
+        <!-- Action / Primary Banner -->
+        <section class="bg-gradient-to-br from-slate-900 via-slate-800 to-brand-900 text-white rounded-2xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
+            <div class="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
+                <i class="fa-solid fa-earth-americas text-[220px]"></i>
+            </div>
+            <div class="relative z-10 max-w-2xl">
+                <span class="inline-flex items-center gap-1.5 py-1 px-3 rounded-full text-xs font-semibold bg-brand-500/30 text-brand-200 border border-brand-400/30 mb-3">
+                    <i class="fa-solid fa-bullseye"></i> Atina tu posición exacta
                 </span>
-            </div>
-            <div id="quick-coords" class="text-lg font-mono font-semibold text-slate-800">
-                Obteniendo señal GPS...
-            </div>
-            <div id="quick-address" class="text-sm text-slate-600 mt-1">
-                Por favor, permite el acceso a la ubicación en tu navegador.
+                <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">Atine — Geolocalización sobre el terreno</h2>
+                <p class="text-slate-300 text-sm sm:text-base mb-6">
+                    Obtén un informe inmediato con coordenadas de alta precisión, dirección postal completa, zona horaria y mapa interactivo en segundos.
+                </p>
+                
+                <div class="flex flex-wrap items-center gap-4">
+                    <button id="locateBtn" class="bg-brand-500 hover:bg-brand-600 active:scale-95 text-white font-semibold px-6 py-3.5 rounded-xl shadow-lg shadow-brand-500/30 transition-all flex items-center gap-3 text-sm sm:text-base cursor-pointer">
+                        <i class="fa-solid fa-location-arrow text-lg"></i>
+                        <span>Atinar mi Ubicación e Informe</span>
+                    </button>
+
+                    <!-- Botón para alternar formulario manual -->
+                    <button id="toggleManualBtn" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-medium px-4 py-3.5 rounded-xl border border-slate-700 transition-all flex items-center gap-2 text-sm cursor-pointer">
+                        <i class="fa-solid fa-keyboard text-brand-400"></i>
+                        <span>Entrada Manual</span>
+                    </button>
+
+                    <div id="statusBadge" class="hidden items-center gap-2 text-xs font-medium px-3.5 py-2 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-300">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span id="statusText">Listo para obtener datos</span>
+                    </div>
+                </div>
+
+                <!-- Formulario desplegable para entrada manual de coordenadas -->
+                <div id="manualInputContainer" class="hidden mt-4 pt-4 border-t border-slate-700/60 transition-all">
+                    <form id="manualCoordsForm" class="flex flex-wrap items-end gap-3">
+                        <div class="flex-1 min-w-[140px]">
+                            <label for="inputLat" class="block text-xs font-medium text-slate-300 mb-1">Latitud</label>
+                            <input type="number" step="any" id="inputLat" placeholder="Ej. 40.416775" required class="w-full bg-slate-950/60 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500">
+                        </div>
+                        <div class="flex-1 min-w-[140px]">
+                            <label for="inputLng" class="block text-xs font-medium text-slate-300 mb-1">Longitud</label>
+                            <input type="number" step="any" id="inputLng" placeholder="Ej. -3.703790" required class="w-full bg-slate-950/60 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500">
+                        </div>
+                        <button type="submit" class="bg-brand-600 hover:bg-brand-500 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 h-[38px] cursor-pointer">
+                            <i class="fa-solid fa-magnifying-glass-location"></i>
+                            <span>Ir a Coordenadas</span>
+                        </button>
+                    </form>
+                    <p class="text-[11px] text-slate-400 mt-2"><i class="fa-solid fa-hand-pointer text-brand-400 mr-1"></i> Consejo: También puedes hacer clic o tocar directamente sobre cualquier punto del mapa para atinar la posición.</p>
+                </div>
             </div>
         </section>
 
-        <!-- Control Bar for Manual Options -->
-        <div class="flex flex-wrap gap-2 items-center justify-between">
-            <div class="text-sm text-slate-500 flex items-center">
-                <i class="fa-solid fa-circle-info text-amber-600 mr-1.5"></i>
-                <span>Puedes hacer clic en el mapa para atinar un punto manualmente.</span>
+        <!-- Dynamic Content Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Left / Map Container -->
+            <div class="lg:col-span-6 flex flex-col gap-4">
+                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm flex flex-col h-[380px] sm:h-[450px]">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-map-location-dot text-brand-500"></i> Mapa en Tiempo Real
+                        </h3>
+                        <div class="flex items-center gap-2">
+                            <span id="locationSourceBadge" class="hidden text-xs bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800 px-2.5 py-1 rounded-full font-medium">
+                                --
+                            </span>
+                            <span id="mapAccuracyBadge" class="hidden text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-full font-mono">
+                                Precisión: --
+                            </span>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <button onclick="toggleManualPanel()" class="text-xs bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
-                <i class="fa-solid fa-sliders mr-1"></i> Entrada Manual de Coordenadas
-            </button>
+
+            <!-- Right / Data Report Cards -->
+            <div class="lg:col-span-6 flex flex-col gap-4">
+
+                <!-- Alert / Notice Box (Error or Help) -->
+                <div id="alertBox" class="hidden p-4 rounded-xl border text-sm flex items-start gap-3 transition-all duration-300">
+                    <i id="alertIcon" class="fa-solid fa-triangle-exclamation text-lg mt-0.5"></i>
+                    <div class="flex-grow">
+                        <h4 id="alertTitle" class="font-semibold">Notificación</h4>
+                        <p id="alertMessage" class="text-xs sm:text-sm mt-0.5"></p>
+                    </div>
+                    <button onclick="hideAlert()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- Main Report Cards Grid -->
+                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm flex flex-col flex-grow justify-between gap-6">
+                    <div>
+                        <div class="flex items-center justify-between pb-4 mb-4 border-b border-slate-100 dark:border-slate-700">
+                            <h3 class="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                <i class="fa-solid fa-file-contract text-brand-500"></i> Informe del Lugar (Atine)
+                            </h3>
+                            <span id="reportTimestamp" class="text-xs text-slate-400 font-mono">--:--:--</span>
+                        </div>
+
+                        <!-- Info Grid -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            
+                            <!-- Card: Coordenadas -->
+                            <div class="bg-slate-50 dark:bg-slate-700/40 p-4 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                                <div class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2 flex items-center justify-between">
+                                    <span>Coordenadas</span>
+                                    <i class="fa-solid fa-compass text-brand-500"></i>
+                                </div>
+                                <div class="space-y-1 font-mono text-xs sm:text-sm">
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-500 dark:text-slate-400">Latitud:</span>
+                                        <span id="valLat" class="font-medium text-slate-800 dark:text-slate-200">--</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-500 dark:text-slate-400">Longitud:</span>
+                                        <span id="valLng" class="font-medium text-slate-800 dark:text-slate-200">--</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-500 dark:text-slate-400">Altitud:</span>
+                                        <span id="valAlt" class="font-medium text-slate-800 dark:text-slate-200">--</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-500 dark:text-slate-400">Precisión:</span>
+                                        <span id="valAcc" class="font-medium text-slate-800 dark:text-slate-200">--</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Card: Zona Horaria & Tiempo -->
+                            <div class="bg-slate-50 dark:bg-slate-700/40 p-4 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                                <div class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2 flex items-center justify-between">
+                                    <span>Zona Horaria</span>
+                                    <i class="fa-solid fa-clock text-brand-500"></i>
+                                </div>
+                                <div class="space-y-1 text-xs sm:text-sm">
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-500 dark:text-slate-400">Zona:</span>
+                                        <span id="valTimezone" class="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[130px]">--</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-500 dark:text-slate-400">Hora local:</span>
+                                        <span id="valLocalTime" class="font-medium text-slate-800 dark:text-slate-200">--</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-500 dark:text-slate-400">Código País:</span>
+                                        <span id="valCountryCode" class="font-mono uppercase font-bold text-brand-600 dark:text-brand-400">--</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Card: Dirección Postal Completa -->
+                            <div class="sm:col-span-2 bg-slate-50 dark:bg-slate-700/40 p-4 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                                <div class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2 flex items-center justify-between">
+                                    <span>Dirección Detectada (Nominatim OSM)</span>
+                                    <i class="fa-solid fa-house-chimney text-brand-500"></i>
+                                </div>
+                                <div id="addressSkeleton" class="hidden animate-pulse space-y-2 py-1">
+                                    <div class="h-3 bg-slate-200 dark:bg-slate-600 rounded w-3/4"></div>
+                                    <div class="h-3 bg-slate-200 dark:bg-slate-600 rounded w-1/2"></div>
+                                </div>
+                                <div id="addressContent" class="space-y-1.5 text-xs sm:text-sm">
+                                    <p id="valFullAddress" class="font-medium text-slate-800 dark:text-slate-100 text-sm sm:text-base leading-snug">
+                                        Esperando lectura de coordenadas...
+                                    </p>
+                                    <div class="grid grid-cols-2 gap-x-4 gap-y-1 pt-2 border-t border-slate-200/60 dark:border-slate-600/40 text-xs text-slate-600 dark:text-slate-300">
+                                        <div><span class="text-slate-400">Vía/Calle:</span> <span id="valRoad" class="font-medium">--</span></div>
+                                        <div><span class="text-slate-400">Barrio/Distrito:</span> <span id="valSuburb" class="font-medium">--</span></div>
+                                        <div><span class="text-slate-400">Municipio/Ciudad:</span> <span id="valCity" class="font-medium">--</span></div>
+                                        <div><span class="text-slate-400">Provincia/Estado:</span> <span id="valState" class="font-medium">--</span></div>
+                                        <div><span class="text-slate-400">Código Postal:</span> <span id="valPostcode" class="font-medium">--</span></div>
+                                        <div><span class="text-slate-400">País:</span> <span id="valCountry" class="font-medium">--</span></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons Toolbar -->
+                    <div class="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
+                        <button id="copyReportBtn" disabled class="disabled:opacity-50 disabled:cursor-not-allowed bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium px-4 py-2.5 rounded-xl text-xs sm:text-sm transition-colors flex items-center gap-2">
+                            <i class="fa-regular fa-copy"></i>
+                            <span>Copiar Informe</span>
+                        </button>
+
+                        <div class="flex items-center gap-2">
+                            <a id="gmapsLink" href="#" target="_blank" class="pointer-events-none opacity-50 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium px-3 py-2.5 rounded-xl text-xs sm:text-sm transition-colors flex items-center gap-1.5" title="Abrir en Google Maps">
+                                <i class="fa-solid fa-map-pin text-red-500"></i>
+                                <span class="hidden sm:inline">Google Maps</span>
+                            </a>
+                            <a id="osmLink" href="#" target="_blank" class="pointer-events-none opacity-50 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium px-3 py-2.5 rounded-xl text-xs sm:text-sm transition-colors flex items-center gap-1.5" title="Abrir en OpenStreetMap">
+                                <i class="fa-solid fa-globe text-emerald-500"></i>
+                                <span class="hidden sm:inline">OpenStreetMap</span>
+                            </a>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
         </div>
-
-        <!-- Manual Input Panel (Hidden by default) -->
-        <div id="manual-panel" class="hidden bg-white p-4 rounded-xl shadow-xs border border-slate-200 space-y-3">
-            <h3 class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-keyboard mr-1"></i> Introducir coordenadas manualmente</h3>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                    <label class="block text-xs font-medium text-slate-500 mb-1">Latitud</label>
-                    <input type="number" step="any" id="manual-lat" placeholder="Ej: 38.8794" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-amber-500 focus:outline-hidden">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-slate-500 mb-1">Longitud</label>
-                    <input type="number" step="any" id="manual-lon" placeholder="Ej: -6.9707" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-amber-500 focus:outline-hidden">
-                </div>
-            </div>
-            <div class="flex justify-end">
-                <button onclick="applyManualCoordinates()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-medium px-4 py-2 rounded-lg cursor-pointer">
-                    Atinar en estas coordenadas
-                </button>
-            </div>
-        </div>
-
-        <!-- Map Section -->
-        <section class="bg-white rounded-xl shadow-xs border border-slate-200 p-4">
-            <div class="flex items-center justify-between mb-3">
-                <h3 class="text-sm font-semibold text-slate-700 flex items-center">
-                    <i class="fa-solid fa-map-location-dot text-amber-600 mr-2"></i> Mapa de Referencia
-                </h3>
-                <span id="map-status" class="text-xs text-slate-400">Haz clic en el mapa para mover la posición</span>
-            </div>
-            <div id="map"></div>
-        </section>
-
-        <!-- Detailed Report Section -->
-        <section class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 class="font-semibold text-slate-800 flex items-center">
-                    <i class="fa-solid fa-file-lines text-amber-600 mr-2"></i> Informe Geográfico Detallado
-                </h3>
-                <span id="report-time" class="text-xs text-slate-400">--:--:--</span>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div class="space-y-3">
-                    <div>
-                        <span class="block text-xs font-medium text-slate-400 uppercase">Ubicación / Vía</span>
-                        <span id="rep-road" class="font-medium text-slate-800">-</span>
-                    </div>
-                    <div>
-                        <span class="block text-xs font-medium text-slate-400 uppercase">Barrio / Localidad</span>
-                        <span id="rep-suburb" class="font-medium text-slate-800">-</span>
-                    </div>
-                    <div>
-                        <span class="block text-xs font-medium text-slate-400 uppercase">Municipio / Provincia</span>
-                        <span id="rep-city" class="font-medium text-slate-800">-</span>
-                    </div>
-                </div>
-                <div class="space-y-3">
-                    <div>
-                        <span class="block text-xs font-medium text-slate-400 uppercase">Código Postal y País</span>
-                        <span id="rep-country" class="font-medium text-slate-800">-</span>
-                    </div>
-                    <div>
-                        <span class="block text-xs font-medium text-slate-400 uppercase">Coordenadas exactas</span>
-                        <span id="rep-coords" class="font-mono text-slate-800">-</span>
-                    </div>
-                    <div>
-                        <span class="block text-xs font-medium text-slate-400 uppercase">Precisión y Altitud</span>
-                        <span id="rep-extra" class="font-medium text-slate-800">-</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Actions Bar -->
-            <div class="pt-3 border-t border-slate-100 flex flex-wrap gap-3 items-center justify-between">
-                <div class="flex items-center space-x-2">
-                    <a id="link-gmaps" href="#" target="_blank" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg font-medium transition-colors flex items-center space-x-1.5">
-                        <i class="fa-solid fa-map text-emerald-600"></i>
-                        <span>Abrir en Google Maps</span>
-                    </a>
-                    <a id="link-osm" href="#" target="_blank" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg font-medium transition-colors flex items-center space-x-1.5">
-                        <i class="fa-solid fa-earth-americas text-blue-600"></i>
-                        <span>Ver en OpenStreetMap</span>
-                    </a>
-                </div>
-                <button onclick="copyReport()" id="btn-copy" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-medium px-4 py-2 rounded-lg shadow-xs transition-colors flex items-center space-x-2 cursor-pointer">
-                    <i class="fa-regular fa-copy"></i>
-                    <span>Copiar Informe Completo</span>
-                </button>
-            </div>
-        </section>
 
     </main>
 
     <!-- Footer -->
-    <footer class="bg-white border-t border-slate-200 mt-12 py-4 text-center text-xs text-slate-400">
-        Atine — Herramienta de posicionamiento geográfico e informe local.
+    <footer class="mt-auto border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 py-4 text-center text-xs text-slate-500 dark:text-slate-400">
+        <p><strong>Atine</strong> — Informe Geográfico de Precisión • Geolocalización Web API y OpenStreetMap</p>
     </footer>
 
-    <!-- JavaScript Logic -->
+    <!-- Logic Script -->
     <script>
-        let map, marker, circle;
-        let currentData = {
-            lat: 38.8794,
-            lon: -6.9707,
-            accuracy: 0,
-            altitude: null,
-            addressText: 'Cargando ubicación...',
-            details: {},
-            source: 'GPS Dispositivo'
-        };
+        // App State
+        let map = null;
+        let userMarker = null;
+        let accuracyCircle = null;
+        let currentReportData = null;
 
-        // Inicializar mapa al cargar
-        function initMap(lat, lon) {
+        // DOM Elements
+        const locateBtn = document.getElementById('locateBtn');
+        const toggleManualBtn = document.getElementById('toggleManualBtn');
+        const manualInputContainer = document.getElementById('manualInputContainer');
+        const manualCoordsForm = document.getElementById('manualCoordsForm');
+        const inputLat = document.getElementById('inputLat');
+        const inputLng = document.getElementById('inputLng');
+        const locationSourceBadge = document.getElementById('locationSourceBadge');
+
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        const statusBadge = document.getElementById('statusBadge');
+        const statusText = document.getElementById('statusText');
+        const mapPlaceholder = document.getElementById('mapPlaceholder');
+        const mapAccuracyBadge = document.getElementById('mapAccuracyBadge');
+        
+        const alertBox = document.getElementById('alertBox');
+        const alertTitle = document.getElementById('alertTitle');
+        const alertMessage = document.getElementById('alertMessage');
+        const alertIcon = document.getElementById('alertIcon');
+
+        const addressSkeleton = document.getElementById('addressSkeleton');
+        const addressContent = document.getElementById('addressContent');
+
+        const copyReportBtn = document.getElementById('copyReportBtn');
+        const gmapsLink = document.getElementById('gmapsLink');
+        const osmLink = document.getElementById('osmLink');
+
+        // Theme Toggle Logic
+        themeToggleBtn.addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+        });
+
+        // Toggle Manual Coords Input Container
+        toggleManualBtn.addEventListener('click', () => {
+            manualInputContainer.classList.toggle('hidden');
+            if (!map) initMap();
+            mapPlaceholder.classList.add('hidden');
+        });
+
+        // Manual Coords Submission
+        manualCoordsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const lat = parseFloat(inputLat.value);
+            const lng = parseFloat(inputLng.value);
+
+            if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                showAlert('Coordenadas Inválidas', 'Introduce valores válidos para latitud (-90 a 90) y longitud (-180 a 180).', 'error');
+                return;
+            }
+
+            processLocationUpdate(lat, lng, null, null, 'manual');
+        });
+
+        // Initialize Map
+        function initMap(lat = 40.416775, lng = -3.703790) {
             if (!map) {
-                map = L.map('map').setView([lat, lon], 16);
+                map = L.map('map', {
+                    zoomControl: true,
+                    attributionControl: false
+                }).setView([lat, lng], 13);
+
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
-                    attribution: '&copy; OpenStreetMap contributors'
+                    maxZoom: 19
                 }).addTo(map);
 
-                // Evento clic en el mapa para atinar posición manual
-                map.on('click', function(e) {
-                    updatePosition(e.latlng.lat, e.latlng.lng, null, null, 'Clic en Mapa');
-                });
-            } else {
-                map.setView([lat, lon], 16);
-            }
+                L.control.attribution({ position: 'bottomright' })
+                    .addAttribution('&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>')
+                    .addTo(map);
 
-            updateMapElements(lat, lon, 0);
+                // Map Click Event for Manual Selection
+                map.on('click', (e) => {
+                    const { lat, lng } = e.latlng;
+                    inputLat.value = lat.toFixed(6);
+                    inputLng.value = lng.toFixed(6);
+                    processLocationUpdate(lat, lng, null, null, 'click');
+                });
+            }
         }
 
-        function updateMapElements(lat, lon, accuracy) {
-            if (marker) {
-                marker.setLatLng([lat, lon]);
-            } else {
-                marker = L.marker([lat, lon], {draggable: true}).addTo(map);
-                marker.on('dragend', function(event) {
-                    let position = marker.getLatLng();
-                    updatePosition(position.lat, position.lng, null, null, 'Marcador Arrastrado');
-                });
+        // Main Trigger: Get GPS Location
+        locateBtn.addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                showAlert('Error de Compatibilidad', 'Tu navegador no soporta la API de Geolocalización.', 'error');
+                return;
             }
 
-            if (accuracy && accuracy > 0) {
-                if (circle) {
-                    circle.setLatLng([lat, lon]);
-                    circle.setRadius(accuracy);
-                } else {
-                    circle = L.circle([lat, lon], {
-                        radius: accuracy,
-                        color: '#d97706',
-                        fillColor: '#f59e0b',
-                        fillOpacity: 0.15
-                    }).addTo(map);
+            setLoadingState(true);
+            hideAlert();
+
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 0
+            };
+
+            navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError, options);
+        });
+
+        // Handle Location Success from Geolocation API
+        function onLocationSuccess(position) {
+            const { latitude, longitude, accuracy, altitude } = position.coords;
+            processLocationUpdate(latitude, longitude, accuracy, altitude, 'gps', position.timestamp);
+        }
+
+        // Universal Function to Process and Render Location Updates (GPS, Click, or Manual)
+        async function processLocationUpdate(latitude, longitude, accuracy = null, altitude = null, source = 'gps', timestampMs = null) {
+            setLoadingState(true);
+            hideAlert();
+            mapPlaceholder.classList.add('hidden');
+
+            const timestamp = timestampMs ? new Date(timestampMs) : new Date();
+
+            // Fill manual inputs with current working coords
+            inputLat.value = latitude.toFixed(6);
+            inputLng.value = longitude.toFixed(6);
+
+            // Initialize or Center Map
+            initMap(latitude, longitude);
+            updateMapVisuals(latitude, longitude, accuracy, source);
+
+            // Location Source Badge
+            locationSourceBadge.classList.remove('hidden');
+            if (source === 'gps') {
+                locationSourceBadge.innerHTML = `<i class="fa-solid fa-satellite text-xs mr-1"></i> GPS Dispositivo`;
+                mapAccuracyBadge.classList.remove('hidden');
+                mapAccuracyBadge.textContent = accuracy ? `Precisión: ±${Math.round(accuracy)}m` : 'Precisión: N/A';
+            } else if (source === 'click') {
+                locationSourceBadge.innerHTML = `<i class="fa-solid fa-hand-pointer text-xs mr-1"></i> Clic en Mapa`;
+                mapAccuracyBadge.classList.add('hidden');
+            } else {
+                locationSourceBadge.innerHTML = `<i class="fa-solid fa-keyboard text-xs mr-1"></i> Entrada Manual`;
+                mapAccuracyBadge.classList.add('hidden');
+            }
+
+            // Render basic telemetry
+            document.getElementById('valLat').textContent = latitude.toFixed(6) + '°';
+            document.getElementById('valLng').textContent = longitude.toFixed(6) + '°';
+            document.getElementById('valAlt').textContent = altitude !== null ? `${altitude.toFixed(1)} m` : 'No disp.';
+            document.getElementById('valAcc').textContent = accuracy ? `±${Math.round(accuracy)} m` : 'Manual';
+            document.getElementById('reportTimestamp').textContent = timestamp.toLocaleTimeString();
+
+            // Timezone
+            const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Desconocida';
+            document.getElementById('valTimezone').textContent = userTimezone;
+            document.getElementById('valLocalTime').textContent = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            // Reverse Geocoding Address
+            addressSkeleton.classList.remove('hidden');
+            addressContent.classList.add('opacity-40');
+
+            let addressDetails = null;
+            try {
+                addressDetails = await fetchAddressFromNominatim(latitude, longitude);
+                populateAddressCard(addressDetails);
+            } catch (err) {
+                console.error("Geocoding failed:", err);
+                document.getElementById('valFullAddress').textContent = "No se pudo obtener la dirección completa (Error de conexión con el servicio).";
+            } finally {
+                addressSkeleton.classList.add('hidden');
+                addressContent.classList.remove('opacity-40');
+            }
+
+            // Prepare external maps links
+            gmapsLink.href = `https://www.google.com/maps?q=${latitude},${longitude}`;
+            gmapsLink.classList.remove('pointer-events-none', 'opacity-50');
+
+            osmLink.href = `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=17/${latitude}/${longitude}`;
+            osmLink.classList.remove('pointer-events-none', 'opacity-50');
+
+            // Save report snapshot
+            const sourceText = source === 'gps' ? 'GPS Dispositivo' : (source === 'click' ? 'Punto pinchado en mapa' : 'Entrada manual');
+            currentReportData = {
+                latitude: latitude.toFixed(6),
+                longitude: longitude.toFixed(6),
+                accuracy: accuracy ? `±${Math.round(accuracy)} metros` : 'N/A (Origen Manual)',
+                altitude: altitude ? `${altitude.toFixed(1)}m` : 'N/A',
+                source: sourceText,
+                address: addressDetails ? addressDetails.display_name : 'No disponible',
+                timezone: userTimezone,
+                time: timestamp.toLocaleString()
+            };
+
+            copyReportBtn.disabled = false;
+            setLoadingState(false);
+        }
+
+        // Fetch Address via Nominatim Reverse Geocoding API
+        async function fetchAddressFromNominatim(lat, lon) {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&addressdetails=1`, {
+                headers: {
+                    'Accept-Language': 'es'
                 }
-            } else if (circle) {
-                map.removeLayer(circle);
-                circle = null;
-            }
-        }
-
-        // Obtener ubicación GPS nativa
-        function getLocation() {
-            const badge = document.getElementById('badge-source');
-            badge.className = "text-xs px-2.5 py-1 rounded-full font-medium bg-amber-100 text-amber-800";
-            badge.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Buscando GPS...';
-
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        const lat = position.coords.latitude;
-                        const lon = position.coords.longitude;
-                        const accuracy = position.coords.accuracy;
-                        const altitude = position.coords.altitude;
-                        updatePosition(lat, lon, accuracy, altitude, 'GPS Dispositivo');
-                    },
-                    (error) => {
-                        console.warn("Error GPS o permiso denegado:", error.message);
-                        badge.className = "text-xs px-2.5 py-1 rounded-full font-medium bg-red-100 text-red-700";
-                        badge.innerHTML = '<i class="fa-solid fa-triangle-exclamation mr-1"></i> GPS No disponible (Usando Badajoz)';
-                        // Ubicación por defecto (Badajoz centro)
-                        updatePosition(38.8794, -6.9707, null, null, 'Predeterminado (Badajoz)');
-                    },
-                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                );
-            } else {
-                alert("La geolocalización no es compatible con este navegador.");
-                updatePosition(38.8794, -6.9707, null, null, 'Predeterminado');
-            }
-        }
-
-        // Actualizar datos de posición e informe
-        function updatePosition(lat, lon, accuracy, altitude, source) {
-            currentData.lat = lat;
-            currentData.lon = lon;
-            currentData.accuracy = accuracy;
-            currentData.altitude = altitude;
-            currentData.source = source;
-
-            // Actualizar interfaz rápida
-            document.getElementById('quick-coords').innerText = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
-            
-            // Actualizar badge de origen
-            const badge = document.getElementById('badge-source');
-            badge.className = "text-xs px-2.5 py-1 rounded-full font-medium bg-emerald-100 text-emerald-800";
-            badge.innerHTML = `<i class="fa-solid fa-circle-check mr-1"></i> Origen: ${source}`;
-
-            // Actualizar mapa
-            if (map) {
-                map.setView([lat, lon], 16);
-                updateMapElements(lat, lon, accuracy);
-            } else {
-                initMap(lat, lon);
-            }
-
-            // Realizar geocodificación inversa con Nominatim
-            fetchReverseGeocoding(lat, lon);
-        }
-
-        // Geocodificación Inversa OpenStreetMap
-        function fetchReverseGeocoding(lat, lon) {
-            const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`;
-
-            document.getElementById('quick-address').innerText = "Consultando entorno geográfico...";
-
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    const addr = data.address || {};
-                    
-                    const road = addr.road || addr.pedestrian || addr.footway || addr.path || 'Ubicación rural / Sin vía nombrada';
-                    const suburb = addr.suburb || addr.neighbourhood || addr.village || addr.town || '-';
-                    const city = addr.city || addr.municipality || addr.county || addr.state || '-';
-                    const postcode = addr.postcode || '';
-                    const country = addr.country || '-';
-
-                    currentData.details = { road, suburb, city, postcode, country };
-                    currentData.addressText = `${road}, ${suburb}, ${city} (${country})`;
-
-                    // Rellenar informe detallado
-                    document.getElementById('quick-address').innerText = currentData.addressText;
-                    document.getElementById('rep-road').innerText = road;
-                    document.getElementById('rep-suburb').innerText = suburb;
-                    document.getElementById('rep-city').innerText = city;
-                    document.getElementById('rep-country').innerText = `${postcode} ${country}`;
-                    document.getElementById('rep-coords').innerText = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
-                    
-                    let extraText = `Precisión: ${currentData.accuracy ? Math.round(currentData.accuracy) + ' m' : 'N/D'}`;
-                    if (currentData.altitude !== null) {
-                        extraText += ` | Altitud: ${Math.round(currentData.altitude)} m`;
-                    }
-                    document.getElementById('rep-extra').innerText = extraText;
-
-                    // Hora local
-                    const now = new Date();
-                    document.getElementById('report-time').innerText = now.toLocaleTimeString();
-
-                    // Enlaces externos
-                    document.getElementById('link-gmaps').href = `https://www.google.com/maps?q=${lat},${lon}`;
-                    document.getElementById('link-osm').href = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=17/${lat}/${lon}`;
-                })
-                .catch(err => {
-                    console.error("Error en geocodificación:", err);
-                    document.getElementById('quick-address').innerText = "Coordenadas obtenidas (Sin desglose de dirección)";
-                    document.getElementById('rep-road').innerText = "Coordenadas puras";
-                    document.getElementById('rep-coords').innerText = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
-                });
-        }
-
-        // Toggle panel manual
-        function toggleManualPanel() {
-            const panel = document.getElementById('manual-panel');
-            panel.classList.toggle('hidden');
-        }
-
-        // Aplicar coordenadas manuales
-        function applyManualCoordinates() {
-            const latInput = parseFloat(document.getElementById('manual-lat').value);
-            const lonInput = parseFloat(document.getElementById('manual-lon').value);
-
-            if (isNaN(latInput) || isNaN(lonInput)) {
-                alert("Por favor, introduce valores numéricos válidos para latitud y longitud.");
-                return;
-            }
-
-            if (latInput < -90 || latInput > 90 || lonInput < -180 || lonInput > 180) {
-                alert("Los valores de latitud (-90 a 90) o longitud (-180 a 180) están fuera de rango.");
-                return;
-            }
-
-            updatePosition(latInput, lonInput, null, null, 'Entrada Manual');
-            toggleManualPanel();
-        }
-
-        // Copiar informe al portapapeles
-        function copyReport() {
-            const reportText = `--- INFORME ATINE GPS ---\n` +
-                `Fecha/Hora: ${new Date().toLocaleString()}\n` +
-                `Origen: ${currentData.source}\n` +
-                `Dirección: ${currentData.addressText}\n` +
-                `Coordenadas: ${currentData.lat.toFixed(6)}, ${currentData.lon.toFixed(6)}\n` +
-                `Google Maps: https://www.google.com/maps?q=${currentData.lat},${currentData.lon}`;
-
-            navigator.clipboard.writeText(reportText).then(() => {
-                const btn = document.getElementById('btn-copy');
-                const originalHTML = btn.innerHTML;
-                btn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> <span>¡Informe Copiado!</span>';
-                setTimeout(() => {
-                    btn.innerHTML = originalHTML;
-                }, 2000);
-            }).catch(err => {
-                alert("No se pudo copiar al portapapeles.");
             });
+            if (!response.ok) throw new Error('Error al conectar con Nominatim');
+            return await response.json();
         }
 
-        // Ejecutar al cargar la página
-        window.onload = function() {
-            getLocation();
-        };
+        // Render Address Components into UI
+        function populateAddressCard(data) {
+            if (!data || !data.address) return;
+            const addr = data.address;
+
+            document.getElementById('valFullAddress').textContent = data.display_name || 'Dirección desconocida';
+            document.getElementById('valRoad').textContent = addr.road || addr.pedestrian || addr.street || '--';
+            document.getElementById('valSuburb').textContent = addr.suburb || addr.neighbourhood || addr.quarter || '--';
+            document.getElementById('valCity').textContent = addr.city || addr.town || addr.village || addr.municipality || '--';
+            document.getElementById('valState').textContent = addr.state || addr.region || addr.province || '--';
+            document.getElementById('valPostcode').textContent = addr.postcode || '--';
+            document.getElementById('valCountry').textContent = addr.country || '--';
+            document.getElementById('valCountryCode').textContent = addr.country_code || '--';
+        }
+
+        // Map Visual Markers and Accuracy Radius
+        function updateMapVisuals(lat, lng, accuracy, source) {
+            if (userMarker) map.removeLayer(userMarker);
+            if (accuracyCircle) map.removeLayer(accuracyCircle);
+
+            // Circle representing GPS Accuracy Radius (only for GPS)
+            if (source === 'gps' && accuracy) {
+                accuracyCircle = L.circle([lat, lng], {
+                    radius: accuracy,
+                    color: '#3b82f6',
+                    fillColor: '#3b82f6',
+                    fillOpacity: 0.15,
+                    weight: 1.5
+                }).addTo(map);
+            }
+
+            // Custom Marker with Pulse Effect
+            const customIcon = L.divIcon({
+                className: 'custom-gps-marker',
+                html: `
+                    <div style="position: relative; width: 20px; height: 20px;">
+                        <div class="pulse-ring"></div>
+                        <div style="background-color: ${source === 'gps' ? '#2563eb' : '#d97706'}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; shadow: 0 4px 6px -1px rgba(0,0,0,0.1);"></div>
+                    </div>
+                `,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+
+            const popupText = source === 'gps' ? `<b>Ubicación GPS</b><br>Precisión: ±${Math.round(accuracy)}m` : `<b>Ubicación Manual</b><br>Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`;
+
+            userMarker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+            userMarker.bindPopup(popupText).openPopup();
+
+            map.flyTo([lat, lng], 16, { animate: true, duration: 1.2 });
+        }
+
+        // Handle Errors from Geolocation API
+        function onLocationError(error) {
+            setLoadingState(false);
+            let title = 'Error de Geolocalización';
+            let message = '';
+
+            switch (error.code) {
+                case error.PERMISSION_DENIED:
+                    title = 'Permiso Denegado';
+                    message = 'Has denegado el acceso a la ubicación. Puedes seleccionar tu posición haciendo clic en el mapa o introduciendo las coordenadas manualmente.';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    title = 'Ubicación No Disponible';
+                    message = 'La información de posición no está disponible en este dispositivo o zona.';
+                    break;
+                case error.TIMEOUT:
+                    title = 'Tiempo de Espera Agotado';
+                    message = 'Se ha agotado el tiempo de espera al intentar obtener tu ubicación.';
+                    break;
+                default:
+                    message = 'Ocurrió un error desconocido al intentar obtener las coordenadas.';
+            }
+
+            showAlert(title, message, 'error');
+        }
+
+        // UI Helpers
+        function setLoadingState(isLoading) {
+            if (isLoading) {
+                locateBtn.disabled = true;
+                locateBtn.classList.add('opacity-75', 'cursor-not-allowed');
+                locateBtn.querySelector('span').textContent = 'Atinando la ubicación...';
+                locateBtn.querySelector('i').className = 'fa-solid fa-spinner animate-spin text-lg';
+                statusBadge.classList.remove('hidden');
+                statusBadge.classList.add('flex');
+                statusText.textContent = 'Procesando coordenadas e informe...';
+            } else {
+                locateBtn.disabled = false;
+                locateBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+                locateBtn.querySelector('span').textContent = 'Atinar mi Ubicación e Informe';
+                locateBtn.querySelector('i').className = 'fa-solid fa-location-arrow text-lg';
+                statusText.textContent = 'Atinado con éxito';
+            }
+        }
+
+        function showAlert(title, msg, type = 'error') {
+            alertTitle.textContent = title;
+            alertMessage.textContent = msg;
+
+            if (type === 'error') {
+                alertBox.className = 'p-4 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-300 flex items-start gap-3 transition-all duration-300';
+                alertIcon.className = 'fa-solid fa-circle-exclamation text-red-500 text-lg mt-0.5';
+            } else {
+                alertBox.className = 'p-4 rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30 text-blue-800 dark:text-blue-300 flex items-start gap-3 transition-all duration-300';
+                alertIcon.className = 'fa-solid fa-circle-info text-blue-500 text-lg mt-0.5';
+            }
+            alertBox.classList.remove('hidden');
+        }
+
+        function hideAlert() {
+            alertBox.classList.add('hidden');
+        }
+
+        // Copy Report to Clipboard Action
+        copyReportBtn.addEventListener('click', () => {
+            if (!currentReportData) return;
+
+            const textToCopy = `--- INFORME ATINE GPS ---
+Origen: ${currentReportData.source}
+Fecha y Hora: ${currentReportData.time}
+Coordenadas: ${currentReportData.latitude}, ${currentReportData.longitude}
+Precisión: ${currentReportData.accuracy}
+Altitud: ${currentReportData.altitude}
+Zona Horaria: ${currentReportData.timezone}
+Dirección: ${currentReportData.address}
+Google Maps: https://www.google.com/maps?q=${currentReportData.latitude},${currentReportData.longitude}`;
+
+            // Cross-browser clipboard copy fallback
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(textToCopy).then(showCopySuccess);
+            } else {
+                const textArea = document.createElement("textarea");
+                textArea.value = textToCopy;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showCopySuccess();
+                } catch (err) {
+                    console.error('Copy fallback failed', err);
+                }
+                document.body.removeChild(textArea);
+            }
+        });
+
+        function showCopySuccess() {
+            const originalHTML = copyReportBtn.innerHTML;
+            copyReportBtn.innerHTML = `<i class="fa-solid fa-check text-emerald-500"></i><span>¡Copiado!</span>`;
+            setTimeout(() => {
+                copyReportBtn.innerHTML = originalHTML;
+            }, 2000);
+        }
     </script>
 </body>
 </html>
+```
