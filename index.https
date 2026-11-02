@@ -105,10 +105,35 @@
                         <span>Atinar mi Ubicación e Informe</span>
                     </button>
 
+                    <!-- Botón para alternar formulario manual -->
+                    <button id="toggleManualBtn" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-medium px-4 py-3.5 rounded-xl border border-slate-700 transition-all flex items-center gap-2 text-sm cursor-pointer">
+                        <i class="fa-solid fa-keyboard text-brand-400"></i>
+                        <span>Entrada Manual</span>
+                    </button>
+
                     <div id="statusBadge" class="hidden items-center gap-2 text-xs font-medium px-3.5 py-2 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-300">
                         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                         <span id="statusText">Listo para obtener datos</span>
                     </div>
+                </div>
+
+                <!-- Formulario desplegable para entrada manual de coordenadas -->
+                <div id="manualInputContainer" class="hidden mt-4 pt-4 border-t border-slate-700/60 transition-all">
+                    <form id="manualCoordsForm" class="flex flex-wrap items-end gap-3">
+                        <div class="flex-1 min-w-[140px]">
+                            <label for="inputLat" class="block text-xs font-medium text-slate-300 mb-1">Latitud</label>
+                            <input type="number" step="any" id="inputLat" placeholder="Ej. 40.416775" required class="w-full bg-slate-950/60 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500">
+                        </div>
+                        <div class="flex-1 min-w-[140px]">
+                            <label for="inputLng" class="block text-xs font-medium text-slate-300 mb-1">Longitud</label>
+                            <input type="number" step="any" id="inputLng" placeholder="Ej. -3.703790" required class="w-full bg-slate-950/60 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500">
+                        </div>
+                        <button type="submit" class="bg-brand-600 hover:bg-brand-500 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 h-[38px] cursor-pointer">
+                            <i class="fa-solid fa-magnifying-glass-location"></i>
+                            <span>Ir a Coordenadas</span>
+                        </button>
+                    </form>
+                    <p class="text-[11px] text-slate-400 mt-2"><i class="fa-solid fa-hand-pointer text-brand-400 mr-1"></i> Consejo: También puedes hacer clic o tocar directamente sobre cualquier punto del mapa para atinar la posición.</p>
                 </div>
             </div>
         </section>
@@ -123,20 +148,13 @@
                         <h3 class="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                             <i class="fa-solid fa-map-location-dot text-brand-500"></i> Mapa en Tiempo Real
                         </h3>
-                        <span id="mapAccuracyBadge" class="hidden text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-full font-mono">
-                            Precisión: --
-                        </span>
-                    </div>
-                    
-                    <!-- Leaflet Container -->
-                    <div id="map" class="w-full flex-grow rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
-                        <!-- Initial Map Placeholder State -->
-                        <div id="mapPlaceholder" class="absolute inset-0 z-20 bg-slate-100 dark:bg-slate-900/90 flex flex-col items-center justify-center p-6 text-center">
-                            <div class="w-16 h-16 rounded-full bg-brand-50 dark:bg-slate-800 flex items-center justify-center text-brand-500 mb-3 shadow-inner">
-                                <i class="fa-solid fa-map-pin text-2xl"></i>
-                            </div>
-                            <p class="font-medium text-slate-700 dark:text-slate-300 mb-1">Mapa no iniciado</p>
-                            <p class="text-xs text-slate-500 dark:text-slate-400 max-w-xs">Haz clic en "Atinar mi Ubicación" para cargar las coordenadas en el mapa.</p>
+                        <div class="flex items-center gap-2">
+                            <span id="locationSourceBadge" class="hidden text-xs bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800 px-2.5 py-1 rounded-full font-medium">
+                                --
+                            </span>
+                            <span id="mapAccuracyBadge" class="hidden text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-full font-mono">
+                                Precisión: --
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -287,6 +305,13 @@
 
         // DOM Elements
         const locateBtn = document.getElementById('locateBtn');
+        const toggleManualBtn = document.getElementById('toggleManualBtn');
+        const manualInputContainer = document.getElementById('manualInputContainer');
+        const manualCoordsForm = document.getElementById('manualCoordsForm');
+        const inputLat = document.getElementById('inputLat');
+        const inputLng = document.getElementById('inputLng');
+        const locationSourceBadge = document.getElementById('locationSourceBadge');
+
         const themeToggleBtn = document.getElementById('themeToggleBtn');
         const statusBadge = document.getElementById('statusBadge');
         const statusText = document.getElementById('statusText');
@@ -310,6 +335,27 @@
             document.documentElement.classList.toggle('dark');
         });
 
+        // Toggle Manual Coords Input Container
+        toggleManualBtn.addEventListener('click', () => {
+            manualInputContainer.classList.toggle('hidden');
+            if (!map) initMap();
+            mapPlaceholder.classList.add('hidden');
+        });
+
+        // Manual Coords Submission
+        manualCoordsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const lat = parseFloat(inputLat.value);
+            const lng = parseFloat(inputLng.value);
+
+            if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                showAlert('Coordenadas Inválidas', 'Introduce valores válidos para latitud (-90 a 90) y longitud (-180 a 180).', 'error');
+                return;
+            }
+
+            processLocationUpdate(lat, lng, null, null, 'manual');
+        });
+
         // Initialize Map
         function initMap(lat = 40.416775, lng = -3.703790) {
             if (!map) {
@@ -325,10 +371,18 @@
                 L.control.attribution({ position: 'bottomright' })
                     .addAttribution('&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>')
                     .addTo(map);
+
+                // Map Click Event for Manual Selection
+                map.on('click', (e) => {
+                    const { lat, lng } = e.latlng;
+                    inputLat.value = lat.toFixed(6);
+                    inputLng.value = lng.toFixed(6);
+                    processLocationUpdate(lat, lng, null, null, 'click');
+                });
             }
         }
 
-        // Main Trigger: Get Location
+        // Main Trigger: Get GPS Location
         locateBtn.addEventListener('click', () => {
             if (!navigator.geolocation) {
                 showAlert('Error de Compatibilidad', 'Tu navegador no soporta la API de Geolocalización.', 'error');
@@ -347,35 +401,55 @@
             navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError, options);
         });
 
-        // Handle Location Success
-        async function onLocationSuccess(position) {
+        // Handle Location Success from Geolocation API
+        function onLocationSuccess(position) {
             const { latitude, longitude, accuracy, altitude } = position.coords;
-            const timestamp = new Date(position.timestamp);
+            processLocationUpdate(latitude, longitude, accuracy, altitude, 'gps', position.timestamp);
+        }
 
-            // Hide initial map overlay placeholder
+        // Universal Function to Process and Render Location Updates (GPS, Click, or Manual)
+        async function processLocationUpdate(latitude, longitude, accuracy = null, altitude = null, source = 'gps', timestampMs = null) {
+            setLoadingState(true);
+            hideAlert();
             mapPlaceholder.classList.add('hidden');
+
+            const timestamp = timestampMs ? new Date(timestampMs) : new Date();
+
+            // Fill manual inputs with current working coords
+            inputLat.value = latitude.toFixed(6);
+            inputLng.value = longitude.toFixed(6);
 
             // Initialize or Center Map
             initMap(latitude, longitude);
-            updateMapVisuals(latitude, longitude, accuracy);
+            updateMapVisuals(latitude, longitude, accuracy, source);
 
-            // Show accuracy badge
-            mapAccuracyBadge.classList.remove('hidden');
-            mapAccuracyBadge.textContent = `Precisión: ±${Math.round(accuracy)}m`;
+            // Location Source Badge
+            locationSourceBadge.classList.remove('hidden');
+            if (source === 'gps') {
+                locationSourceBadge.innerHTML = `<i class="fa-solid fa-satellite text-xs mr-1"></i> GPS Dispositivo`;
+                mapAccuracyBadge.classList.remove('hidden');
+                mapAccuracyBadge.textContent = accuracy ? `Precisión: ±${Math.round(accuracy)}m` : 'Precisión: N/A';
+            } else if (source === 'click') {
+                locationSourceBadge.innerHTML = `<i class="fa-solid fa-hand-pointer text-xs mr-1"></i> Clic en Mapa`;
+                mapAccuracyBadge.classList.add('hidden');
+            } else {
+                locationSourceBadge.innerHTML = `<i class="fa-solid fa-keyboard text-xs mr-1"></i> Entrada Manual`;
+                mapAccuracyBadge.classList.add('hidden');
+            }
 
-            // Render basic numeric telemetry immediately
+            // Render basic telemetry
             document.getElementById('valLat').textContent = latitude.toFixed(6) + '°';
             document.getElementById('valLng').textContent = longitude.toFixed(6) + '°';
             document.getElementById('valAlt').textContent = altitude !== null ? `${altitude.toFixed(1)} m` : 'No disp.';
-            document.getElementById('valAcc').textContent = `±${Math.round(accuracy)} m`;
+            document.getElementById('valAcc').textContent = accuracy ? `±${Math.round(accuracy)} m` : 'Manual';
             document.getElementById('reportTimestamp').textContent = timestamp.toLocaleTimeString();
 
-            // Estimate Timezone from client environment or coords
+            // Timezone
             const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Desconocida';
             document.getElementById('valTimezone').textContent = userTimezone;
             document.getElementById('valLocalTime').textContent = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-            // Fetch Reverse Geocoding Address from OpenStreetMap Nominatim
+            // Reverse Geocoding Address
             addressSkeleton.classList.remove('hidden');
             addressContent.classList.add('opacity-40');
 
@@ -398,12 +472,14 @@
             osmLink.href = `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=17/${latitude}/${longitude}`;
             osmLink.classList.remove('pointer-events-none', 'opacity-50');
 
-            // Save report snapshot for clipboard copying
+            // Save report snapshot
+            const sourceText = source === 'gps' ? 'GPS Dispositivo' : (source === 'click' ? 'Punto pinchado en mapa' : 'Entrada manual');
             currentReportData = {
                 latitude: latitude.toFixed(6),
                 longitude: longitude.toFixed(6),
-                accuracy: Math.round(accuracy),
+                accuracy: accuracy ? `±${Math.round(accuracy)} metros` : 'N/A (Origen Manual)',
                 altitude: altitude ? `${altitude.toFixed(1)}m` : 'N/A',
+                source: sourceText,
                 address: addressDetails ? addressDetails.display_name : 'No disponible',
                 timezone: userTimezone,
                 time: timestamp.toLocaleString()
@@ -440,18 +516,20 @@
         }
 
         // Map Visual Markers and Accuracy Radius
-        function updateMapVisuals(lat, lng, accuracy) {
+        function updateMapVisuals(lat, lng, accuracy, source) {
             if (userMarker) map.removeLayer(userMarker);
             if (accuracyCircle) map.removeLayer(accuracyCircle);
 
-            // Circle representing GPS Accuracy Radius
-            accuracyCircle = L.circle([lat, lng], {
-                radius: accuracy,
-                color: '#3b82f6',
-                fillColor: '#3b82f6',
-                fillOpacity: 0.15,
-                weight: 1.5
-            }).addTo(map);
+            // Circle representing GPS Accuracy Radius (only for GPS)
+            if (source === 'gps' && accuracy) {
+                accuracyCircle = L.circle([lat, lng], {
+                    radius: accuracy,
+                    color: '#3b82f6',
+                    fillColor: '#3b82f6',
+                    fillOpacity: 0.15,
+                    weight: 1.5
+                }).addTo(map);
+            }
 
             // Custom Marker with Pulse Effect
             const customIcon = L.divIcon({
@@ -459,17 +537,19 @@
                 html: `
                     <div style="position: relative; width: 20px; height: 20px;">
                         <div class="pulse-ring"></div>
-                        <div style="background-color: #2563eb; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; shadow: 0 4px 6px -1px rgba(0,0,0,0.1);"></div>
+                        <div style="background-color: ${source === 'gps' ? '#2563eb' : '#d97706'}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; shadow: 0 4px 6px -1px rgba(0,0,0,0.1);"></div>
                     </div>
                 `,
                 iconSize: [20, 20],
                 iconAnchor: [10, 10]
             });
 
-            userMarker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
-            userMarker.bindPopup(`<b>Punto Atinado</b><br>Precisión: ±${Math.round(accuracy)}m`).openPopup();
+            const popupText = source === 'gps' ? `<b>Ubicación GPS</b><br>Precisión: ±${Math.round(accuracy)}m` : `<b>Ubicación Manual</b><br>Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`;
 
-            map.flyTo([lat, lng], 16, { animate: true, duration: 1.5 });
+            userMarker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+            userMarker.bindPopup(popupText).openPopup();
+
+            map.flyTo([lat, lng], 16, { animate: true, duration: 1.2 });
         }
 
         // Handle Errors from Geolocation API
@@ -481,7 +561,7 @@
             switch (error.code) {
                 case error.PERMISSION_DENIED:
                     title = 'Permiso Denegado';
-                    message = 'Has denegado el acceso a la ubicación. Por favor, habilita los permisos de ubicación en tu navegador.';
+                    message = 'Has denegado el acceso a la ubicación. Puedes seleccionar tu posición haciendo clic en el mapa o introduciendo las coordenadas manualmente.';
                     break;
                 case error.POSITION_UNAVAILABLE:
                     title = 'Ubicación No Disponible';
@@ -507,7 +587,7 @@
                 locateBtn.querySelector('i').className = 'fa-solid fa-spinner animate-spin text-lg';
                 statusBadge.classList.remove('hidden');
                 statusBadge.classList.add('flex');
-                statusText.textContent = 'Atinando GPS y consultando dirección...';
+                statusText.textContent = 'Procesando coordenadas e informe...';
             } else {
                 locateBtn.disabled = false;
                 locateBtn.classList.remove('opacity-75', 'cursor-not-allowed');
@@ -540,9 +620,10 @@
             if (!currentReportData) return;
 
             const textToCopy = `--- INFORME ATINE GPS ---
+Origen: ${currentReportData.source}
 Fecha y Hora: ${currentReportData.time}
 Coordenadas: ${currentReportData.latitude}, ${currentReportData.longitude}
-Precisión: ±${currentReportData.accuracy} metros
+Precisión: ${currentReportData.accuracy}
 Altitud: ${currentReportData.altitude}
 Zona Horaria: ${currentReportData.timezone}
 Dirección: ${currentReportData.address}
