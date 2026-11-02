@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atine v1.3.0 — Informe de Ubicación GPS</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        #map { height: 350px; width: 100%; border-radius: 0.75rem; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-xs">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <div class="bg-amber-600 text-white p-2 rounded-lg shadow-xs">
+                    <i class="fa-solid fa-crosshairs text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-slate-900 flex items-center flex-wrap gap-1">
+                        <span>Atine</span>
+                        <span class="text-xs font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">GPS</span>
+                        <button onclick="toggleChangelog()" class="text-xs font-mono bg-amber-600 text-white hover:bg-amber-700 px-2 py-0.5 rounded-md cursor-pointer transition-colors font-bold shadow-2xs" title="Ver historial de cambios">
+                            v1.3.0
+                        </button>
+                    </h1>
+                    <p class="text-xs text-slate-500">Informe de posición y entorno geográfico</p>
+                </div>
+            </div>
+            <button onclick="getLocation()" id="btn-refresh" class="bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-xs transition-colors flex items-center space-x-2 cursor-pointer">
+                <i class="fa-solid fa-location-crosshairs"></i>
+                <span class="hidden sm:inline">Atinar de nuevo</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-4xl mx-auto px-4 py-6 w-full space-y-6">
+
+        <!-- Quick Status Card -->
+        <section class="bg-white rounded-xl shadow-xs border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Estado de Ubicación Actual</h2>
+                <span id="badge-source" class="text-xs px-2.5 py-1 rounded-full font-medium bg-slate-100 text-slate-600">
+                    <i class="fa-solid fa-spinner fa-spin mr-1"></i> Detectando...
+                </span>
+            </div>
+            <div id="quick-coords" class="text-lg font-mono font-semibold text-slate-800">
+                Obteniendo señal GPS...
+            </div>
+            <div id="quick-address" class="text-sm text-slate-600 mt-1">
+                Por favor, permite el acceso a la ubicación en tu navegador.
+            </div>
+        </section>
+
+        <!-- Control Bar for Manual Options -->
+        <div class="flex flex-wrap gap-2 items-center justify-between">
+            <div class="text-sm text-slate-500 flex items-center">
+                <i class="fa-solid fa-circle-info text-amber-600 mr-1.5"></i>
+                <span>Puedes hacer clic en el mapa para atinar un punto manualmente.</span>
+            </div>
+            <button onclick="toggleManualPanel()" class="text-xs bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
+                <i class="fa-solid fa-sliders mr-1"></i> Entrada Manual de Coordenadas
+            </button>
+        </div>
+
+        <!-- Manual Input Panel -->
+        <div id="manual-panel" class="hidden bg-white p-4 rounded-xl shadow-xs border border-slate-200 space-y-3">
+            <h3 class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-keyboard mr-1"></i> Introducir coordenadas manualmente</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Latitud</label>
+                    <input type="number" step="any" id="manual-lat" placeholder="Ej: 38.8794" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-amber-500 focus:outline-hidden">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Longitud</label>
+                    <input type="number" step="any" id="manual-lon" placeholder="Ej: -6.9707" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-amber-500 focus:outline-hidden">
+                </div>
+            </div>
+            <div class="flex justify-end">
+                <button onclick="applyManualCoordinates()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-medium px-4 py-2 rounded-lg cursor-pointer">
+                    Atinar en estas coordenadas
+                </button>
+            </div>
+        </div>
+
+        <!-- Map Section -->
+        <section class="bg-white rounded-xl shadow-xs border border-slate-200 p-4">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-semibold text-slate-700 flex items-center">
+                    <i class="fa-solid fa-map-location-dot text-amber-600 mr-2"></i> Mapa de Referencia
+                </h3>
+                <span id="map-status" class="text-xs text-slate-400">Haz clic en el mapa para mover la posición</span>
+            </div>
+            <div id="map"></div>
+        </section>
+
+        <!-- Detailed Report Section -->
+        <section class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="font-semibold text-slate-800 flex items-center">
+                    <i class="fa-solid fa-file-lines text-amber-600 mr-2"></i> Informe Geográfico Detallado
+                </h3>
+                <span id="report-time" class="text-xs text-slate-400">--:--:--</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div class="space-y-3">
+                    <div>
+                        <span class="block text-xs font-medium text-slate-400 uppercase">Ubicación / Vía</span>
+                        <span id="rep-road" class="font-medium text-slate-800">-</span>
+                    </div>
+                    <div>
+                        <span class="block text-xs font-medium text-slate-400 uppercase">Barrio / Localidad</span>
+                        <span id="rep-suburb" class="font-medium text-slate-800">-</span>
+                    </div>
+                    <div>
+                        <span class="block text-xs font-medium text-slate-400 uppercase">Municipio / Provincia</span>
+                        <span id="rep-city" class="font-medium text-slate-800">-</span>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <div>
+                        <span class="block text-xs font-medium text-slate-400 uppercase">Código Postal y País</span>
+                        <span id="rep-country" class="font-medium text-slate-800">-</span>
+                    </div>
+                    <div>
+                        <span class="block text-xs font-medium text-slate-400 uppercase">Coordenadas exactas</span>
+                        <span id="rep-coords" class="font-mono text-slate-800">-</span>
+                    </div>
+                    <div>
+                        <span class="block text-xs font-medium text-slate-400 uppercase">Precisión y Altitud</span>
+                        <span id="rep-extra" class="font-medium text-slate-800">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Context & Wikipedia Section -->
+            <div class="border-t border-slate-100 pt-4 space-y-3">
+                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center">
+                    <i class="fa-solid fa-landmark text-amber-600 mr-1.5"></i> Topónimos y Lugares de Interés
+                </h4>
+                <div id="wiki-results" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-slate-500">
+                        Buscando puntos de interés en la zona...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions Bar -->
+            <div class="pt-3 border-t border-slate-100 flex flex-wrap gap-3 items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <a id="link-gmaps" href="#" target="_blank" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg font-medium transition-colors flex items-center space-x-1.5">
+                        <i class="fa-solid fa-map text-emerald-600"></i>
+                        <span>Google Maps</span>
+                    </a>
+                    <a id="link-osm" href="#" target="_blank" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg font-medium transition-colors flex items-center space-x-1.5">
+                        <i class="fa-solid fa-earth-americas text-blue-600"></i>
+                        <span>OpenStreetMap</span>
+                    </a>
+                </div>
+                <button onclick="copyReport()" id="btn-copy" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-medium px-4 py-2 rounded-lg shadow-xs transition-colors flex items-center space-x-2 cursor-pointer">
+                    <i class="fa-regular fa-copy"></i>
+                    <span>Copiar Informe Completo</span>
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Changelog Modal -->
+    <div id="modal-changelog" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-lg max-w-md w-full p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h3 class="font-bold text-slate-800 text-base">Historial de Versiones (Changelog)</h3>
+                <button onclick="toggleChangelog()" class="text-slate-400 hover:text-slate-600 text-sm">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="space-y-3 text-xs text-slate-600 max-h-60 overflow-y-auto pr-1">
+                <div class="border-l-2 border-amber-500 pl-3 py-0.5">
+                    <div class="font-bold text-slate-800">v1.3.0 (Versión Actual)</div>
+                    <p>• Búsqueda de topónimos y lugares de interés (Wikipedia API).</p>
+                    <p>• Visibilidad mejorada del número de versión en móvil/escritorio.</p>
+                </div>
+                <div class="border-l-2 border-slate-300 pl-3 py-0.5">
+                    <div class="font-bold text-slate-800">v1.2.0</div>
+                    <p>• Detección automática al cargar la web.</p>
+                    <p>• Visualización de coordenadas en pantalla principal.</p>
+                    <p>• Control de versiones básico.</p>
+                </div>
+                <div class="border-l-2 border-slate-300 pl-3 py-0.5">
+                    <div class="font-bold text-slate-800">v1.1.0</div>
+                    <p>• Selección de ubicación por clic en el mapa y formulario manual.</p>
+                </div>
+                <div class="border-l-2 border-slate-300 pl-3 py-0.5">
+                    <div class="font-bold text-slate-800">v1.0.0</div>
+                    <p>• Versión inicial de la app Atine.</p>
+                </div>
+            </div>
+            <div class="text-right pt-2 border-t border-slate-100">
+                <button onclick="toggleChangelog()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs px-3 py-1.5 rounded-lg">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 mt-12 py-4 text-center text-xs text-slate-500 flex flex-row justify-between items-center max-w-4xl mx-auto px-4 w-full">
+        <span>Atine GPS — Posicionamiento e Informe Local</span>
+        <button onclick="toggleChangelog()" class="bg-amber-100 text-amber-900 font-mono font-bold px-2.5 py-1 rounded-md hover:bg-amber-200 transition-colors">
+            v1.3.0
+        </button>
+    </footer>
+
+    <!-- JavaScript Logic -->
+    <script>
+        let map, marker, circle;
+        let currentData = {
+            lat: 38.8794,
+            lon: -6.9707,
+            accuracy: 0,
+            altitude: null,
+            addressText: 'Cargando ubicación...',
+            details: {},
+            source: 'GPS Dispositivo'
+        };
+
+        function toggleChangelog() {
+            const modal = document.getElementById('modal-changelog');
+            modal.classList.toggle('hidden');
+        }
+
+        function initMap(lat, lon) {
+            if (!map) {
+                map = L.map('map').setView([lat, lon], 16);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+
+                map.on('click', function(e) {
+                    updatePosition(e.latlng.lat, e.latlng.lng, null, null, 'Clic en Mapa');
+                });
+            } else {
+                map.setView([lat, lon], 16);
+            }
+
+            updateMapElements(lat, lon, 0);
+        }
+
+        function updateMapElements(lat, lon, accuracy) {
+            if (marker) {
+                marker.setLatLng([lat, lon]);
+            } else {
+                marker = L.marker([lat, lon], {draggable: true}).addTo(map);
+                marker.on('dragend', function(event) {
+                    let position = marker.getLatLng();
+                    updatePosition(position.lat, position.lng, null, null, 'Marcador Arrastrado');
+                });
+            }
+
+            if (accuracy && accuracy > 0) {
+                if (circle) {
+                    circle.setLatLng([lat, lon]);
+                    circle.setRadius(accuracy);
+                } else {
+                    circle = L.circle([lat, lon], {
+                        radius: accuracy,
+                        color: '#d97706',
+                        fillColor: '#f59e0b',
+                        fillOpacity: 0.15
+                    }).addTo(map);
+                }
+            } else if (circle) {
+                map.removeLayer(circle);
+                circle = null;
+            }
+        }
+
+        function getLocation() {
+            const badge = document.getElementById('badge-source');
+            badge.className = "text-xs px-2.5 py-1 rounded-full font-medium bg-amber-100 text-amber-800";
+            badge.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Buscando GPS...';
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        const accuracy = position.coords.accuracy;
+                        const altitude = position.coords.altitude;
+                        updatePosition(lat, lon, accuracy, altitude, 'GPS Dispositivo');
+                    },
+                    (error) => {
+                        console.warn("Error GPS o permiso denegado:", error.message);
+                        badge.className = "text-xs px-2.5 py-1 rounded-full font-medium bg-red-100 text-red-700";
+                        badge.innerHTML = '<i class="fa-solid fa-triangle-exclamation mr-1"></i> GPS No disponible';
+                        updatePosition(38.8794, -6.9707, null, null, 'Predeterminado (Badajoz)');
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            } else {
+                alert("La geolocalización no es compatible con este navegador.");
+                updatePosition(38.8794, -6.9707, null, null, 'Predeterminado');
+            }
+        }
+
+        function updatePosition(lat, lon, accuracy, altitude, source) {
+            currentData.lat = lat;
+            currentData.lon = lon;
+            currentData.accuracy = accuracy;
+            currentData.altitude = altitude;
+            currentData.source = source;
+
+            document.getElementById('quick-coords').innerText = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+            
+            const badge = document.getElementById('badge-source');
+            badge.className = "text-xs px-2.5 py-1 rounded-full font-medium bg-emerald-100 text-emerald-800";
+            badge.innerHTML = `<i class="fa-solid fa-circle-check mr-1"></i> Origen: ${source}`;
+
+            if (map) {
+                map.setView([lat, lon], 16);
+                updateMapElements(lat, lon, accuracy);
+            } else {
+                initMap(lat, lon);
+            }
+
+            fetchReverseGeocoding(lat, lon);
+            fetchWikipediaPoints(lat, lon);
+        }
+
+        function fetchReverseGeocoding(lat, lon) {
+            const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`;
+
+            document.getElementById('quick-address').innerText = "Consultando entorno geográfico...";
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    const addr = data.address || {};
+                    
+                    const road = addr.road || addr.pedestrian || addr.footway || addr.path || 'Ubicación rural / Sin vía nombrada';
+                    const suburb = addr.suburb || addr.neighbourhood || addr.village || addr.town || '-';
+                    const city = addr.city || addr.municipality || addr.county || addr.state || '-';
+                    const postcode = addr.postcode || '';
+                    const country = addr.country || '-';
+
+                    currentData.details = { road, suburb, city, postcode, country };
+                    currentData.addressText = `${road}, ${suburb}, ${city} (${country})`;
+
+                    document.getElementById('quick-address').innerText = currentData.addressText;
+                    document.getElementById('rep-road').innerText = road;
+                    document.getElementById('rep-suburb').innerText = suburb;
+                    document.getElementById('rep-city').innerText = city;
+                    document.getElementById('rep-country').innerText = `${postcode} ${country}`;
+                    document.getElementById('rep-coords').innerText = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+                    
+                    let extraText = `Precisión: ${currentData.accuracy ? Math.round(currentData.accuracy) + ' m' : 'N/D'}`;
+                    if (currentData.altitude !== null) {
+                        extraText += ` | Altitud: ${Math.round(currentData.altitude)} m`;
+                    }
+                    document.getElementById('rep-extra').innerText = extraText;
+
+                    const now = new Date();
+                    document.getElementById('report-time').innerText = now.toLocaleTimeString();
+
+                    document.getElementById('link-gmaps').href = `https://www.google.com/maps?q=${lat},${lon}`;
+                    document.getElementById('link-osm').href = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=17/${lat}/${lon}`;
+                })
+                .catch(err => {
+                    console.error("Error en geocodificación:", err);
+                    document.getElementById('quick-address').innerText = "Coordenadas obtenidas (Sin desglose de dirección)";
+                    document.getElementById('rep-road').innerText = "Coordenadas puras";
+                    document.getElementById('rep-coords').innerText = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+                });
+        }
+
+        // Consultar Wikipedia para topónimos e interés en un radio de 5km
+        function fetchWikipediaPoints(lat, lon) {
+            const container = document.getElementById('wiki-results');
+            container.innerHTML = '<div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-slate-500 col-span-2"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Buscando topónimos cercanos...</div>';
+
+            const wikiUrl = `https://es.wikipedia.org/w/api.php?action=query&list=geosearch&gscoord=${lat}|${lon}&gsradius=5000&gslimit=4&format=json&origin=*`;
+
+            fetch(wikiUrl)
+                .then(res => res.json())
+                .then(data => {
+                    const items = data.query ? data.query.geosearch : [];
+                    if (items.length === 0) {
+                        container.innerHTML = '<div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-slate-500 col-span-2">No se encontraron artículos de Wikipedia cercanos a este punto.</div>';
+                        return;
+                    }
+
+                    container.innerHTML = '';
+                    items.forEach(item => {
+                        const dist = Math.round(item.dist);
+                        const card = document.createElement('a');
+                        card.href = `https://es.wikipedia.org/?curid=${item.pageid}`;
+                        card.target = '_blank';
+                        card.className = "p-3 bg-slate-50 hover:bg-amber-50 rounded-lg border border-slate-200 hover:border-amber-300 transition-colors block text-slate-700";
+                        card.innerHTML = `
+                            <div class="font-bold flex items-center justify-between text-slate-800">
+                                <span>${item.title}</span>
+                                <span class="text-amber-700 font-normal text-xs bg-amber-100 px-1.5 py-0.5 rounded">${dist} m</span>
+                            </div>
+                            <span class="text-slate-400 text-xs flex items-center mt-1">Ver en Wikipedia <i class="fa-solid fa-arrow-up-right-from-square ml-1 text-3xs"></i></span>
+                        `;
+                        container.appendChild(card);
+                    });
+                })
+                .catch(err => {
+                    container.innerHTML = '<div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-slate-400 col-span-2">Información geográfica de interés no disponible.</div>';
+                });
+        }
+
+        function toggleManualPanel() {
+            const panel = document.getElementById('manual-panel');
+            panel.classList.toggle('hidden');
+        }
+
+        function applyManualCoordinates() {
+            const latInput = parseFloat(document.getElementById('manual-lat').value);
+            const lonInput = parseFloat(document.getElementById('manual-lon').value);
+
+            if (isNaN(latInput) || isNaN(lonInput)) {
+                alert("Por favor, introduce valores numéricos válidos para latitud y longitud.");
+                return;
+            }
+
+            if (latInput < -90 || latInput > 90 || lonInput < -180 || lonInput > 180) {
+                alert("Los valores de latitud (-90 a 90) o longitud (-180 a 180) están fuera de rango.");
+                return;
+            }
+
+            updatePosition(latInput, lonInput, null, null, 'Entrada Manual');
+            toggleManualPanel();
+        }
+
+        function copyReport() {
+            const reportText = `--- INFORME ATINE GPS (v1.3.0) ---\n` +
+                `Fecha/Hora: ${new Date().toLocaleString()}\n` +
+                `Origen: ${currentData.source}\n` +
+                `Dirección: ${currentData.addressText}\n` +
+                `Coordenadas: ${currentData.lat.toFixed(6)}, ${currentData.lon.toFixed(6)}\n` +
+                `Google Maps: https://www.google.com/maps?q=${currentData.lat},${currentData.lon}`;
+
+            navigator.clipboard.writeText(reportText).then(() => {
+                const btn = document.getElementById('btn-copy');
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> <span>¡Informe Copiado!</span>';
+                setTimeout(() => {
+                    btn.innerHTML = originalHTML;
+                }, 2000);
+            }).catch(err => {
+                alert("No se pudo copiar al portapapeles.");
+            });
+        }
+
+        window.onload = function() {
+            getLocation();
+        };
+    </script>
+</body>
+</html>
